@@ -1,59 +1,99 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
-st.title("🏦 Bank Account Management System")
+st.title("🏦 Bank Account Management with Fraud Detection & Fingerprint")
 
-# Initialize session state
+# -------- SESSION STATE --------
 if "balance" not in st.session_state:
     st.session_state.balance = 0.0
 
 if "transactions" not in st.session_state:
     st.session_state.transactions = []
 
-# ----------- ACCOUNT DETAILS -----------
-st.subheader("👤 Account Details")
+# Simulated fingerprint ID (acts like biometric template)
+if "fingerprint_id" not in st.session_state:
+    st.session_state.fingerprint_id = "FP1234"   # Registered fingerprint
 
+# -------- ACCOUNT DETAILS --------
+st.subheader("👤 Account Details")
 name = st.text_input("Customer Name")
 account_type = st.selectbox("Account Type", ["Savings", "Current"])
 
-# ----------- BALANCE DISPLAY -----------
+# -------- BALANCE DISPLAY --------
 st.subheader("💰 Current Balance")
 st.info(f"₹ {st.session_state.balance:.2f}")
 
-# ----------- TRANSACTION SECTION -----------
-st.subheader("💳 Transactions")
+# -------- TRANSACTION SECTION --------
+st.subheader("💳 Transaction")
 
-amount = st.number_input("Enter Amount", min_value=0.0, step=100.0)
+amount = st.number_input("Enter Amount", min_value=0.0, step=500.0)
+transaction_type = st.radio("Transaction Type", ["Deposit", "Withdraw"])
 
-col1, col2 = st.columns(2)
+# -------- FRAUD DETECTION FUNCTION --------
+def detect_fraud(amount, transaction_type, balance):
+    reasons = []
 
-# Deposit
-with col1:
-    if st.button("Deposit"):
-        st.session_state.balance += amount
-        st.session_state.transactions.append(
-            {"Type": "Deposit", "Amount": amount}
-        )
-        st.success("Amount Deposited Successfully ✅")
+    if amount > 50000:
+        reasons.append("High amount transaction")
 
-# Withdraw
-with col2:
-    if st.button("Withdraw"):
-        if amount <= st.session_state.balance:
-            st.session_state.balance -= amount
-            st.session_state.transactions.append(
-                {"Type": "Withdraw", "Amount": amount}
-            )
-            st.success("Amount Withdrawn Successfully ✅")
+    if transaction_type == "Withdraw" and amount > balance:
+        reasons.append("Withdrawal exceeds balance")
+
+    if amount == 0:
+        reasons.append("Zero amount transaction")
+
+    return reasons
+
+# -------- FINGERPRINT VERIFICATION --------
+fingerprint_input = ""
+if transaction_type == "Withdraw":
+    st.subheader("🖐️ Fingerprint Verification")
+    fingerprint_input = st.text_input(
+        "Enter Fingerprint ID (Simulated)",
+        type="password",
+        help="Example: FP1234"
+    )
+
+# -------- PROCESS TRANSACTION --------
+if st.button("Submit Transaction"):
+
+    fraud_reasons = detect_fraud(amount, transaction_type, st.session_state.balance)
+
+    # Fingerprint check for withdrawal
+    if transaction_type == "Withdraw" and fingerprint_input != st.session_state.fingerprint_id:
+        st.error("❌ Fingerprint verification failed!")
+    
+    elif fraud_reasons:
+        st.error("⚠️ Fraud Alert Detected!")
+        for r in fraud_reasons:
+            st.warning(r)
+
+    else:
+        if transaction_type == "Deposit":
+            st.session_state.balance += amount
+            status = "Success"
+
         else:
-            st.error("Insufficient Balance ❌")
+            st.session_state.balance -= amount
+            status = "Success"
 
-# ----------- TRANSACTION HISTORY -----------
+        st.session_state.transactions.append({
+            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Type": transaction_type,
+            "Amount": amount,
+            "Balance After": st.session_state.balance,
+            "Status": status
+        })
+
+        st.success("Transaction completed successfully ✅")
+
+# -------- TRANSACTION HISTORY --------
 if st.session_state.transactions:
     st.subheader("📋 Transaction History")
     df = pd.DataFrame(st.session_state.transactions)
     st.dataframe(df)
 
-    st.subheader("📊 Deposit vs Withdrawal Chart")
-    chart_df = df.groupby("Type").sum()
+    st.subheader("📊 Transaction Summary")
+    chart_df = df.groupby("Type")["Amount"].sum()
     st.bar_chart(chart_df)
